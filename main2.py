@@ -181,6 +181,7 @@ def classify_equation(eq_str):
 # STREAMLIT UI
 # =========================================================
 st.set_page_config(page_title="ODE Analyzer", page_icon="📘")
+st.image("el_ostora.webp", caption="Rizk Code", use_container_width=True)
 
 st.title("📘 Ordinary Differential Equation Solver — Streamlit Version")
 
