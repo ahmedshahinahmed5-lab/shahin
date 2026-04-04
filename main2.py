@@ -181,11 +181,11 @@ def classify_equation(eq_str):
 # STREAMLIT UI
 # =========================================================
 st.set_page_config(page_title="ODE Analyzer", page_icon="📘")
-st.title("📘 محرّر المعادلات التفاضلية — Streamlit Version")
+st.title("📘 Ordinary Differential Equation Solver — Streamlit Version")
 
-eq_input = st.text_input("أدخل معادلة:", placeholder="مثال: dy/dx + y = x*y**2")
+eq_input = st.text_input("Enter equation:", placeholder="Example: dy/dx + y = x*y**2")
 
-if st.button("تحليل ✅"):
+if st.button("Solve ✅"):
     result = classify_equation(eq_input)
-    st.success("✅ نتيجة التحليل:")
+    st.success("✅ Result:")
     st.code(result)
