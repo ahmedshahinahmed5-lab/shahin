@@ -216,7 +216,7 @@ with st.sidebar:
         "Separable":    "dy/dx = x*y",
         "Bernoulli":    "dy/dx = y + x*y**2",
         "Homogeneous":  "dy/dx = (x+y)/x",
-        "Exact":        "(2*x*y)dx + (x**2)dy = 0",
+        "Exact":        "(2*x*y)*dx + (x**2)*dy = 0",
     }
     for kind, eq in examples.items():
         if st.button(f"{kind}: {eq}", use_container_width=True):
