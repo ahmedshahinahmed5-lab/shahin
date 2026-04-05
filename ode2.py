@@ -112,60 +112,135 @@ def is_homogeneous(f):
         return False
 
 # =========================================================
-# SOLVERS
+# SOLVERS WITH STEPS
 # =========================================================
 
-def solve_linear(f):
+def solve_linear_with_steps(f):
     try:
+        steps = []
         P = -sp.diff(f, y)
         Q = sp.simplify(f + P * y)
         mu = sp.exp(sp.integrate(P, x))
-        return f"y = {sp.simplify((sp.integrate(Q * mu, x) + C1) / mu)}"
+        integral = sp.integrate(mu * Q, x)
+        y_sol = sp.simplify((integral + C1) / mu)
+        
+        steps = [
+            "**Step 1:** Write in standard form: `dy/dx + P(x)y = Q(x)`",
+            f"`P(x) = {sp.latex(P)}` , `Q(x) = {sp.latex(Q)}`",
+            "**Step 2:** Find integrating factor: `μ = e^(∫P dx)`",
+            f"`μ = {sp.latex(mu)}`",
+            "**Step 3:** Multiply both sides: `d/dx(y·μ) = μ·Q`",
+            "**Step 4:** Integrate: `y·μ = ∫μ·Q dx + C`",
+            f"`y·μ = {sp.latex(integral)} + C`",
+            "**Step 5:** Solve for y",
+            f"`y = {sp.latex(y_sol)}`"
+        ]
+        return y_sol, steps
     except Exception as e:
-        return f"❌ {e}"
+        return None, [f"❌ Error: {e}"]
 
-def solve_separable(f):
+def solve_separable_with_steps(f):
     try:
+        steps = []
         g = f.subs(y, 1)
         h = sp.simplify(1 / (f / g))
-        return f"{sp.integrate(h, y)} = {sp.integrate(g, x)} + C"
+        left_int = sp.integrate(h, y)
+        right_int = sp.integrate(g, x)
+        
+        steps = [
+            "**Step 1:** Write in separable form: `dy/dx = g(x)h(y)`",
+            f"`dy/dx = {sp.latex(f)}`",
+            "**Step 2:** Separate variables: `dy/h(y) = g(x) dx`",
+            f"`dy/{sp.latex(h)} = {sp.latex(g)} dx`",
+            "**Step 3:** Integrate both sides",
+            f"`∫ {sp.latex(h)} dy = ∫ {sp.latex(g)} dx`",
+            f"`{sp.latex(left_int)} = {sp.latex(right_int)} + C`"
+        ]
+        return sp.Eq(left_int, right_int + C1), steps
     except Exception as e:
-        return f"❌ {e}"
+        return None, [f"❌ Error: {e}"]
 
-def solve_bernoulli(f):
+def solve_bernoulli_with_steps(f):
     try:
+        steps = []
         powers = {}
         for term in sp.expand(f).as_ordered_terms():
             if term.has(y):
                 p = sp.degree(term, y)
                 powers[p] = powers.get(p, sp.Integer(0)) + sp.simplify(term / y**p)
+        
         n = max(p for p in powers if p not in (0, 1))
         P_c = -powers.get(1, sp.Integer(0))
         Q_c = powers.get(n, sp.Integer(0))
-        mu = sp.exp(sp.integrate((1 - n) * P_c, x))
-        v_sol = sp.simplify((sp.integrate((1 - n) * Q_c * mu, x) + C1) / mu)
-        return f"y = {sp.simplify(v_sol ** sp.Rational(1, 1-n))}   [v = y^{1-n}, n={n}]"
+        coeff = 1 - n
+        mu = sp.exp(sp.integrate(coeff * P_c, x))
+        v_sol = sp.simplify((sp.integrate(coeff * Q_c * mu, x) + C1) / mu)
+        y_sol = sp.simplify(v_sol ** sp.Rational(1, 1-n))
+        
+        steps = [
+            "**Step 1:** Identify Bernoulli form: `dy/dx + P(x)y = Q(x)y^n`",
+            f"`n = {n}`",
+            "**Step 2:** Find P(x) and Q(x)",
+            f"`P(x) = {sp.latex(P_c)}` , `Q(x) = {sp.latex(Q_c)}`",
+            f"**Step 3:** Substitution `v = y^{{{1-n}}}`",
+            f"`dv/dx + ({sp.latex(coeff)})P(x)v = ({sp.latex(coeff)})Q(x)`",
+            "**Step 4:** Solve linear equation for v",
+            f"`v = {sp.latex(v_sol)}`",
+            f"**Step 5:** Substitute back `y = v^{{{1/(1-n)}}}`",
+            f"`y = {sp.latex(y_sol)}`"
+        ]
+        return y_sol, steps
     except Exception as e:
-        return f"❌ {e}"
+        return None, [f"❌ Error: {e}"]
 
-def solve_homogeneous(f):
+def solve_homogeneous_with_steps(f):
     try:
+        steps = []
         v = sp.Function('v')(x)
         rhs = sp.simplify(f.subs(y, v * x) - v)
-        if rhs == 0:
-            return "y = C·x"
-        return f"{sp.integrate(1/rhs, v)} = {sp.integrate(1/x, x)} + C   [v = y/x]"
+        
+        steps = [
+            "**Step 1:** Check homogeneity: `f(tx,ty) = t^k f(x,y)` ✓",
+            "**Step 2:** Substitution `y = vx` , `dy/dx = v + x dv/dx`",
+            "**Step 3:** Substitute into equation",
+            f"`x dv/dx = {sp.latex(rhs)}`",
+            "**Step 4:** Separate variables",
+            f"`dv/{sp.latex(rhs)} = dx/x`",
+            "**Step 5:** Integrate both sides",
+            f"`∫ dv/{sp.latex(rhs)} = ∫ dx/x + C`",
+            "**Step 6:** Substitute back `v = y/x`"
+        ]
+        return None, steps
     except Exception as e:
-        return f"❌ {e}"
+        return None, [f"❌ Error: {e}"]
 
-def solve_exact(eq_str):
+def solve_exact_with_steps(eq_str):
     try:
+        steps = []
         M, N = get_MN(eq_str)
+        dM_dy = sp.diff(M, y)
+        dN_dx = sp.diff(N, x)
         F = sp.integrate(M, x)
-        g = sp.integrate(sp.simplify(N - sp.diff(F, y)), y)
-        return f"F(x,y) = {sp.simplify(F + g)} = C"
+        dh_dy = sp.simplify(N - sp.diff(F, y))
+        h = sp.integrate(dh_dy, y)
+        F_final = sp.simplify(F + h)
+        
+        steps = [
+            "**Step 1:** Check exactness: `∂M/∂y = ∂N/∂x`",
+            f"`M = {sp.latex(M)}` , `N = {sp.latex(N)}`",
+            f"`∂M/∂y = {sp.latex(dM_dy)}` , `∂N/∂x = {sp.latex(dN_dx)}`",
+            "✓ Equation is exact",
+            "**Step 2:** Find `F = ∫M dx + h(y)`",
+            f"`F = {sp.latex(F)} + h(y)`",
+            "**Step 3:** Find h(y) from `∂F/∂y = N`",
+            f"`dh/dy = {sp.latex(dh_dy)}`",
+            f"`h(y) = {sp.latex(h)}`",
+            "**Step 4:** General solution: `F(x,y) = C`",
+            f"`{sp.latex(F_final)} = C`"
+        ]
+        return F_final, steps
     except Exception as e:
-        return f"❌ {e}"
+        return None, [f"❌ Error: {e}"]
 
 # =========================================================
 # CLASSIFY
@@ -204,11 +279,11 @@ st.set_page_config(page_title="ODE Solver", page_icon="🧮")
 st.title("🧮 ODE Solver")
 
 # session state init
-for key in ("types_found", "label", "solution", "sol_type", "eq_saved"):
+for key in ("types_found", "label", "solution", "steps", "sol_type", "eq_saved", "selected_method"):
     if key not in st.session_state:
-        st.session_state[key] = {} if key == "types_found" else ""
+        st.session_state[key] = {} if key == "types_found" else [] if key == "steps" else ""
 
-# ── Examples ──
+# ── Examples in Sidebar ──
 with st.sidebar:
     st.header("📚 Examples")
     examples = {
@@ -216,7 +291,7 @@ with st.sidebar:
         "Separable":    "dy/dx = x*y",
         "Bernoulli":    "dy/dx = y + x*y**2",
         "Homogeneous":  "dy/dx = (x+y)/x",
-        "Exact":        "(2*x*y)*dx + (x**2)*dy = 0",
+        "Exact":        "(2*x*y)dx + (x**2)dy = 0",
     }
     for kind, eq in examples.items():
         if st.button(f"{kind}: {eq}", use_container_width=True):
@@ -224,6 +299,7 @@ with st.sidebar:
             st.session_state.types_found = {}
             st.session_state.label = ""
             st.session_state.solution = ""
+            st.session_state.steps = []
             st.rerun()
 
 # ── Input ──
@@ -239,41 +315,83 @@ with col1:
             st.session_state.label = label
             st.session_state.types_found = types
             st.session_state.solution = ""
+            st.session_state.steps = []
             st.session_state.eq_saved = eq_input.strip()
+            # تعيين أول طريقة كـ selected_method
+            if types:
+                st.session_state.selected_method = list(types.keys())[0]
 
 with col2:
     if st.button("🗑 Clear", use_container_width=True):
-        for key in ("types_found", "label", "solution", "sol_type", "eq_saved"):
-            st.session_state[key] = {} if key == "types_found" else ""
+        for key in ("types_found", "label", "solution", "steps", "sol_type", "eq_saved", "selected_method"):
+            st.session_state[key] = {} if key == "types_found" else [] if key == "steps" else ""
         st.rerun()
 
 # ── Analysis result ──
 if st.session_state.label:
     st.info(st.session_state.label)
 
-# ── Solve buttons ──
+# ── Dropdown for method selection ──
 types = st.session_state.types_found
 if types:
-    st.write("**Solve as:**")
-    cols = st.columns(len(types))
-    for i, (name, f_or_flag) in enumerate(types.items()):
-        with cols[i]:
-            if st.button(f"Solve {name}", use_container_width=True):
-                eq_str = st.session_state.eq_saved
-                if name == "Exact":        res = solve_exact(eq_str)
-                elif name == "Linear":     res = solve_linear(f_or_flag)
-                elif name == "Separable":  res = solve_separable(f_or_flag)
-                elif name == "Bernoulli":  res = solve_bernoulli(f_or_flag)
-                elif name == "Homogeneous": res = solve_homogeneous(f_or_flag)
-                else: res = "❌ Unknown"
-                st.session_state.solution = res
-                st.session_state.sol_type = name
+    methods_list = list(types.keys())
+    
+    # Dropdown لاختيار طريقة الحل
+    selected_method = st.selectbox(
+        "**Choose solution method:**",
+        options=methods_list,
+        index=methods_list.index(st.session_state.selected_method) if st.session_state.selected_method in methods_list else 0,
+        key="method_select"
+    )
+    st.session_state.selected_method = selected_method
+    
+    # زر حل واحد
+    if st.button(f"📖 Solve as {selected_method}", use_container_width=True, type="primary"):
+        eq_str = st.session_state.eq_saved
+        f_or_flag = types[selected_method]
+        
+        if selected_method == "Exact":        
+            res, steps = solve_exact_with_steps(eq_str)
+        elif selected_method == "Linear":     
+            res, steps = solve_linear_with_steps(f_or_flag)
+        elif selected_method == "Separable":  
+            res, steps = solve_separable_with_steps(f_or_flag)
+        elif selected_method == "Bernoulli":  
+            res, steps = solve_bernoulli_with_steps(f_or_flag)
+        elif selected_method == "Homogeneous":
+            res, steps = solve_homogeneous_with_steps(f_or_flag)
+        else: 
+            res, steps = "❌ Unknown", []
+        
+        st.session_state.solution = res
+        st.session_state.steps = steps
+        st.session_state.sol_type = selected_method
 
-# ── Solution output ──
+# ── Solution output with steps ──
 if st.session_state.solution:
     sol = st.session_state.solution
+    steps = st.session_state.steps
     stype = st.session_state.sol_type
-    if sol.startswith("❌"):
+    
+    if isinstance(sol, str) and sol.startswith("❌"):
         st.error(f"[{stype}] {sol}")
     else:
-        st.success(f"[{stype} Solution]\n\n{sol}")
+        st.success(f"✅ [{stype}] Solution")
+        
+        # عرض الخطوات
+        if steps:
+            with st.expander("📖 Solution Steps", expanded=True):
+                for step in steps:
+                    if step.startswith("**Step"):
+                        st.markdown(step)
+                    else:
+                        st.code(step, language="python")
+        
+        # عرض الحل النهائي
+        if sol and sol != "None":
+            st.markdown("---")
+            st.markdown("### 📝 Final Solution:")
+            if isinstance(sol, sp.Basic):
+                st.latex(sp.latex(sol))
+            else:
+                st.latex(sol)
