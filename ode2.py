@@ -326,9 +326,54 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .stButton > button {
+        font-family: 'Consolas', monospace;
+        font-weight: bold;
+    }
+    .stTextInput > div > div > input {
+        font-family: 'Consolas', monospace;
+        font-size: 18px;
+    }
+    .stTextArea textarea {
+        font-family: 'Consolas', monospace;
+    }
+    .success-text {
+        color: #2ECC71;
+        font-family: 'Consolas', monospace;
+    }
+    .info-text {
+        color: #4F8EF7;
+        font-family: 'Consolas', monospace;
+    }
+    .warning-text {
+        color: #F39C12;
+        font-family: 'Consolas', monospace;
+    }
+    .steps-text {
+        color: #F39C12;
+        font-family: 'Consolas', monospace;
+        background-color: #2E3650;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    .answer-text {
+        color: #1ABC9C;
+        font-family: 'Consolas', monospace;
+        font-size: 16px;
+        font-weight: bold;
+        background-color: #2E3650;
+        padding: 10px;
+        border-radius: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Title
-st.title("📚 Ordinary Differential Equation Solver")
-st.caption("Enter your equation · Analyze · Solve")
+st.markdown("<h1 style='text-align: center; color: #4F8EF7;'>📚 Ordinary Differential Equation Solver</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #95A5A6;'>Enter your equation · Analyze · Solve</p>", unsafe_allow_html=True)
 
 # Store current types in session state
 if 'current_types' not in st.session_state:
@@ -338,20 +383,21 @@ if 'current_eq' not in st.session_state:
 
 # Input section
 with st.container():
-    st.divider()
-    
-    eq_input = st.text_input(
-        "Enter first-order ODE:",
-        value=st.session_state.current_eq,
-        placeholder="Example: dy/dx = x*y  or  (2*x*y)*dx + (x**2)*dy = 0",
-        key="equation_input"
-    )
-    
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 4])
-    with col_btn1:
-        analyze_btn = st.button("🔍 Analyze", use_container_width=True)
-    with col_btn2:
-        clear_btn = st.button("✖ Clear", use_container_width=True)
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        eq_input = st.text_input(
+            "Enter first-order ODE:",
+            value=st.session_state.current_eq,
+            placeholder="Example: dy/dx = x*y  or  (2*x*y)*dx + (x**2)*dy = 0",
+            key="equation_input"
+        )
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            analyze_btn = st.button("🔍 Analyze", use_container_width=True, type="primary")
+        with col_btn2:
+            clear_btn = st.button("✖ Clear", use_container_width=True)
 
 # Analysis result
 if clear_btn:
@@ -371,7 +417,7 @@ if analyze_btn and eq_input:
 
 # Display current equation info
 if st.session_state.current_eq:
-    st.info(f"📝 Current equation: **{st.session_state.current_eq}**")
+    st.markdown(f"<p class='info-text'>📝 Current equation: <b>{st.session_state.current_eq}</b></p>", unsafe_allow_html=True)
 
 # STEPS dictionary
 STEPS = {
@@ -445,8 +491,8 @@ STEPS = {
 
 # Solve buttons section
 if st.session_state.current_types:
-    st.divider()
-    st.subheader("🔧 Solve as:")
+    st.markdown("---")
+    st.markdown("<h3 style='text-align: center;'>🔧 Solve as:</h3>", unsafe_allow_html=True)
     
     # Create columns for buttons dynamically
     type_list = list(st.session_state.current_types.keys())
@@ -459,7 +505,7 @@ if st.session_state.current_types:
                 
                 # Show steps
                 with st.expander("📖 Solution Steps", expanded=True):
-                    st.code(STEPS.get(ode_type, ""))
+                    st.markdown(STEPS.get(ode_type, ""))
                 
                 # Solve
                 with st.spinner(f"Solving {ode_type} equation..."):
@@ -480,15 +526,14 @@ if st.session_state.current_types:
                     else:
                         res = "❌ Unknown type"
                 
-                st.success(f"**Answer [{ode_type}]:**")
-                st.code(res)
+                st.markdown(f"<div class='answer-text'>🎯 Answer [{ode_type}]:<br>{res}</div>", unsafe_allow_html=True)
 
 # Examples and Tips section
-st.divider()
+st.markdown("---")
 col_ex, col_tip = st.columns(2)
 
 with col_ex:
-    st.subheader("📚 Example Equations")
+    st.markdown("<h3 style='color: #4F8EF7;'>📚 Example Equations</h3>", unsafe_allow_html=True)
     
     examples = [
         ("Linear", "dy/dx + 2*x*y = exp(-x**2)"),
@@ -503,7 +548,7 @@ with col_ex:
     for kind, eq in examples:
         col1, col2, col3 = st.columns([1, 3, 1])
         with col1:
-            st.write(f"**[{kind}]**")
+            st.markdown(f"<span style='color: #4F8EF7;'>[{kind}]</span>", unsafe_allow_html=True)
         with col2:
             st.code(eq, language="python")
         with col3:
@@ -512,20 +557,20 @@ with col_ex:
                 st.rerun()
 
 with col_tip:
-    st.subheader("💡 Input Tips")
+    st.markdown("<h3 style='color: #F39C12;'>💡 Input Tips</h3>", unsafe_allow_html=True)
     
     tips = [
         "Use  dy/dx = ...  for standard form",
         "Use  M(x,y)dx + N(x,y)dy = 0  for exact",
         "Write powers as  x**2  or  y**3",
         "Use  *  for multiplication:  2*x*y",
-        "Click Analyze first, then Solve",
+        "Click 🔍 Analyze first, then Solve",
         "Solve buttons appear for matched types",
     ]
     
     for tip in tips:
-        st.write(f"• {tip}")
+        st.markdown(f"• {tip}")
 
 # Footer
-st.divider()
-st.caption("ODE Solver • Powered by SymPy & Streamlit")
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: #95A5A6;'>ODE Solver • Powered by SymPy & Streamlit</p>", unsafe_allow_html=True)
