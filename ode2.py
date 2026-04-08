@@ -2,6 +2,7 @@ import streamlit as st
 import sympy as sp
 import re
 
+# ─────────────────────────── symbols ────────────────────────────
 x, y, t, C1 = sp.symbols('x y t C1')
 _DX_ = sp.Symbol('_DX_')
 _DY_ = sp.Symbol('_DY_')
@@ -9,7 +10,6 @@ _DY_ = sp.Symbol('_DY_')
 # ─────────────────────────── helpers ────────────────────────────
 
 def get_MN(eq_str):
-    """Return (M, N) from M dx + N dy = 0 using safe regex parsing."""
     eq_str = eq_str.replace(" ", "")
     lhs, rhs = eq_str.split("=")
     lhs2 = re.sub(r'\bdx\b', '_DX_', lhs)
@@ -45,7 +45,6 @@ def analyze_input(eq_str):
     return True, True, "✅ ODE (Differential Equation)", eq_std
 
 def parse_equation(eq_str):
-    """Parse dy/dx = f(x,y) and return f as sympy expression."""
     eq_str = eq_str.replace(" ", "")
     _, rhs = eq_str.split("=", 1)
     return sp.sympify(rhs)
@@ -63,9 +62,7 @@ def is_separable(f):
         f = sp.simplify(f)
         fx = f.subs(y, 1)
         fy = sp.simplify(f / fx)
-        if not fx.has(y) and not fy.has(x):
-            return True
-        return False
+        return not fx.has(y) and not fy.has(x)
     except:
         return False
 
@@ -113,7 +110,6 @@ def is_exact(eq_str):
         return False
 
 def is_nonexact(eq_str):
-    """Not exact but has an integrating factor μ(x) or μ(y)."""
     try:
         eq_str = eq_str.replace(" ", "")
         if "dx" not in eq_str or "dy" not in eq_str or "=" not in eq_str:
@@ -121,12 +117,10 @@ def is_nonexact(eq_str):
         M, N = get_MN(eq_str)
         diff = sp.simplify(sp.diff(M, y) - sp.diff(N, x))
         if diff == 0:
-            return False   # already exact
-        # check (My - Nx)/N depends only on x
+            return False
         mu_x = sp.simplify(diff / N)
         if not mu_x.has(y):
             return True
-        # check (Nx - My)/M depends only on y
         mu_y = sp.simplify(-diff / M)
         if not mu_y.has(x):
             return True
@@ -135,7 +129,6 @@ def is_nonexact(eq_str):
         return False
 
 def is_nonhomogeneous_linear(f):
-    """Linear ODE dy/dx + P(x)y = Q(x) where Q != 0."""
     try:
         if not is_linear(f):
             return False
@@ -148,10 +141,9 @@ def is_nonhomogeneous_linear(f):
 # ─────────────────────────── solvers ────────────────────────────
 
 def solve_linear(f):
-    """dy/dx = P(x)*y + Q(x)  →  y = e^(-∫P) [∫Q e^∫P dx + C]"""
     try:
-        P = -sp.diff(f, y)          # coefficient of y  (f = -P*y + Q)
-        Q = sp.simplify(f + P * y)  # f = -P y + Q  →  Q = f + P y
+        P = -sp.diff(f, y)
+        Q = sp.simplify(f + P * y)
         mu = sp.exp(sp.integrate(P, x))
         sol = (sp.integrate(Q * mu, x) + C1) / mu
         return f"y = {sp.simplify(sol)}"
@@ -159,11 +151,10 @@ def solve_linear(f):
         return f"❌ Could not solve: {e}"
 
 def solve_separable(f):
-    """dy/dx = g(x)/h(y)  →  ∫h dy = ∫g dx"""
     try:
-        g = f.subs(y, 1)        # g(x) part
-        h_inv = sp.simplify(f / g)   # 1/h(y) part
-        h = sp.simplify(1 / h_inv)   # h(y)
+        g = f.subs(y, 1)
+        h_inv = sp.simplify(f / g)
+        h = sp.simplify(1 / h_inv)
         lhs = sp.integrate(h, y)
         rhs = sp.integrate(g, x)
         return f"{lhs} = {rhs} + C"
@@ -171,10 +162,8 @@ def solve_separable(f):
         return f"❌ Could not solve: {e}"
 
 def solve_bernoulli(f):
-    """y' + P y = Q y^n  →  substitute v = y^(1-n)"""
     try:
         terms = sp.expand(f).as_ordered_terms()
-        # find powers of y
         powers = {}
         for term in terms:
             if term.has(y):
@@ -183,8 +172,6 @@ def solve_bernoulli(f):
         n = max(p for p in powers if p not in (0, 1))
         P_coeff = -powers.get(1, sp.Integer(0))
         Q_coeff = powers.get(n, sp.Integer(0))
-        v = sp.Function('v')(x)
-        # v' + (1-n)P v = (1-n)Q
         new_P = (1 - n) * P_coeff
         new_Q = (1 - n) * Q_coeff
         mu = sp.exp(sp.integrate(new_P, x))
@@ -195,13 +182,10 @@ def solve_bernoulli(f):
         return f"❌ Could not solve: {e}"
 
 def solve_homogeneous(f):
-    """y' = F(y/x)  →  substitute v = y/x"""
     try:
         v = sp.Function('v')(x)
         y_sub = v * x
         f_sub = f.subs(y, y_sub)
-        # dy/dx = v + x dv/dx
-        # v + x v' = F(v)  →  x v' = F(v) - v
         F_v = sp.simplify(f_sub)
         rhs = sp.simplify(F_v - v)
         if rhs == 0:
@@ -213,13 +197,10 @@ def solve_homogeneous(f):
         return f"❌ Could not solve: {e}"
 
 def solve_exact(eq_str):
-    """M dx + N dy = 0  →  find F(x,y) = C"""
     try:
         M, N = get_MN(eq_str)
-        # F_x = M  →  F = ∫M dx + g(y)
         F = sp.integrate(M, x)
         g_prime = sp.simplify(N - sp.diff(F, y))
-        # g_prime should depend on y only
         g = sp.integrate(g_prime, y)
         F_total = sp.simplify(F + g)
         return f"F(x,y) = {F_total} = C"
@@ -227,33 +208,25 @@ def solve_exact(eq_str):
         return f"❌ Could not solve: {e}"
 
 def solve_nonexact(eq_str):
-    """Find integrating factor μ(x) or μ(y), multiply, then solve as exact."""
     try:
         eq_str_clean = eq_str.replace(" ", "")
         M, N = get_MN(eq_str_clean)
         diff = sp.simplify(sp.diff(M, y) - sp.diff(N, x))
-
         mu_expr = None
         mu_type = ""
-
-        # try μ(x)
         mu_x_expr = sp.simplify(diff / N)
         if not mu_x_expr.has(y):
             mu_expr = sp.exp(sp.integrate(mu_x_expr, x))
             mu_type = "μ(x)"
         else:
-            # try μ(y)
             mu_y_expr = sp.simplify(-diff / M)
             if not mu_y_expr.has(x):
                 mu_expr = sp.exp(sp.integrate(mu_y_expr, y))
                 mu_type = "μ(y)"
-
         if mu_expr is None:
             return "❌ Could not find integrating factor"
-
         M2 = sp.expand(mu_expr * M)
         N2 = sp.expand(mu_expr * N)
-
         F = sp.integrate(M2, x)
         g_prime = sp.simplify(N2 - sp.diff(F, y))
         g = sp.integrate(g_prime, y)
@@ -263,18 +236,12 @@ def solve_nonexact(eq_str):
         return f"❌ Could not solve: {e}"
 
 def solve_nonhomogeneous(f):
-    """dy/dx + P(x)y = Q(x)  solved by variation of parameters: y = y_h + y_p"""
     try:
         P = -sp.diff(f, y)
         Q = sp.simplify(f + P * y)
-
-        # homogeneous solution: y_h = C * e^(-∫P dx)
         mu = sp.exp(sp.integrate(P, x))
         y_h = C1 / mu
-
-        # particular solution: y_p = (1/μ) ∫ Q·μ dx
         y_p = sp.simplify(sp.integrate(Q * mu, x) / mu)
-
         y_general = sp.simplify(y_h + y_p)
         return (f"Homogeneous sol:  y_h = C·e^(-∫P dx) = {sp.simplify(y_h)}\n"
                 f"Particular sol:   y_p = {y_p}\n"
@@ -286,20 +253,15 @@ def classify_equation(eq_str):
     valid, is_ode, msg, eq_std = analyze_input(eq_str)
     if not valid or not is_ode:
         return msg, {}
-
     types_found = {}
-
     if is_exact(eq_str):
         types_found['Exact'] = True
     elif is_nonexact(eq_str):
         types_found['NonExact'] = True
-
-    # For dy/dx form equations, extract f and classify
     if eq_std and "dy/dx" in eq_std:
         f = extract_f(eq_std)
         if f is None:
             return "❌ Cannot extract dy/dx", {}
-
         if is_bernoulli(f):
             types_found['Bernoulli'] = f
         if is_separable(f):
@@ -310,267 +272,282 @@ def classify_equation(eq_str):
             types_found['NonHomogeneous'] = f
         if is_homogeneous(f):
             types_found['Homogeneous'] = f
-
     if not types_found:
         return "⚠️ ODE type not recognised", {}
-
     label = "✅ Type(s): " + ", ".join(types_found.keys())
     return label, types_found
 
-# ─────────────────────────── UI with Streamlit ─────────────────────────────────
+# ─────────────────────────── steps ──────────────────────────────
 
-# Page config
+STEPS = {
+    "Linear": """**Steps: Linear Equation**
+1. Standard form: `dy/dx + P(x)·y = Q(x)`
+2. Integrating factor: `μ = e^(∫P dx)`
+3. Multiply both sides: `d/dx(y·μ) = μ·Q`
+4. Integrate: `y·μ = ∫μ·Q dx + C`
+5. Solve for y: `y = (∫μ·Q dx + C) / μ`""",
+
+    "Separable": """**Steps: Separable Equation**
+1. Separable form: `dy/dx = g(x)·h(y)`
+2. Separate variables: `dy / h(y) = g(x) dx`
+3. Integrate left: `∫ dy/h(y)`
+4. Integrate right: `∫ g(x) dx`
+5. Add constant C: `∫dy/h(y) = ∫g(x)dx + C`""",
+
+    "Bernoulli": """**Steps: Bernoulli Equation**
+1. Identify form: `dy/dx + P(x)y = Q(x)y^n`
+2. Substitution: `v = y^(1-n)`
+3. Transform to linear: `dv/dx + (1-n)P·v = (1-n)Q`
+4. Solve linear ODE for v
+5. Back-substitute: `y = v^(1/(1-n))`""",
+
+    "Homogeneous": """**Steps: Homogeneous Equation**
+1. Verify: `f(tx, ty) = t^k · f(x, y)`
+2. Substitution: `y = v·x`, `dy/dx = v + x·dv/dx`
+3. Substitute: `v + x·dv/dx = F(v)`
+4. Separate: `dv / (F(v) - v) = dx/x`
+5. Integrate & back-substitute: `v = y/x`""",
+
+    "Exact": """**Steps: Exact Equation**
+1. Write as: `M(x,y)dx + N(x,y)dy = 0`
+2. Check exactness: `∂M/∂y = ∂N/∂x`
+3. Find potential: `F = ∫M dx + h(y)`
+4. Find h(y) from: `∂F/∂y = N ⟹ h'(y)`
+5. Solution: `F(x,y) = C`""",
+
+    "NonExact": """**Steps: Non-Exact Equation**
+1. Write as: `M dx + N dy = 0`
+2. Verify `∂M/∂y ≠ ∂N/∂x` (not exact)
+3. Find integrating factor μ:
+   - `(∂M/∂y - ∂N/∂x)/N = f(x)` only → `μ = e^(∫f dx)`
+   - `(∂N/∂x - ∂M/∂y)/M = g(y)` only → `μ = e^(∫g dy)`
+4. Multiply: `M* = μM`, `N* = μN` (now exact)
+5. Solve as exact equation: `F(x,y) = C`""",
+
+    "NonHomogeneous": """**Steps: Non-Homogeneous Linear**
+1. Standard form: `dy/dx + P(x)y = Q(x)`
+2. Solve homogeneous: `dy/dx + Py = 0` → `y_h = C · e^(-∫P dx)`
+3. Variation of parameters: `y_p = u(x) · e^(-∫P dx)`
+4. Find u(x): `u'(x) = Q · e^(∫P dx)` → `u = ∫ Q · e^(∫P dx) dx`
+5. General solution: `y = y_h + y_p`""",
+}
+
+BTN_COLORS = {
+    "Linear":         "#386EC6",
+    "Separable":      "#2EC46C",
+    "Bernoulli":      "#8F5FA1",
+    "Homogeneous":    "#D68910",
+    "Exact":          "#17A589",
+    "NonExact":       "#E74C3C",
+    "NonHomogeneous": "#1A5276",
+}
+
+EXAMPLES = [
+    ("Linear",         "dy/dx + 2*x*y = exp(-x**2)"),
+    ("Separable",      "dy/dx = x*y"),
+    ("Bernoulli",      "dy/dx + 2*x*y = y**4"),
+    ("Homogeneous",    "dy/dx = (x+y)/x"),
+    ("Exact",          "(2*x*y)*dx + (x**2)*dy = 0"),
+    ("NonExact",       "y*dx + 2*x*dy = 0"),
+    ("NonHomogeneous", "dy/dx - y = x**2"),
+]
+
+# ─────────────────────────── Streamlit UI ───────────────────────
+
 st.set_page_config(
     page_title="ODE Solver",
-    page_icon="📚",
+    page_icon="📐",
     layout="wide"
 )
 
-# Custom CSS for better styling
 st.markdown("""
 <style>
-    .stButton > button {
-        font-family: 'Consolas', monospace;
-        font-weight: bold;
-    }
+    body { background-color: #1A1F2E; }
+    .main { background-color: #1A1F2E; }
+    .stApp { background-color: #1A1F2E; color: #ECF0F1; }
+    h1, h2, h3 { color: #4F8EF7; }
     .stTextInput > div > div > input {
-        font-family: 'Consolas', monospace;
+        background-color: #2E3650;
+        color: #ECF0F1;
+        border: 2px solid #4F8EF7;
         font-size: 18px;
+        font-family: Consolas, monospace;
     }
-    .stTextArea textarea {
-        font-family: 'Consolas', monospace;
-    }
-    .success-text {
-        color: #2ECC71;
-        font-family: 'Consolas', monospace;
-    }
-    .info-text {
-        color: #4F8EF7;
-        font-family: 'Consolas', monospace;
-    }
-    .warning-text {
-        color: #F39C12;
-        font-family: 'Consolas', monospace;
-    }
-    .steps-text {
-        color: #F39C12;
-        font-family: 'Consolas', monospace;
-        background-color: #2E3650;
-        padding: 10px;
-        border-radius: 5px;
-    }
-    .answer-text {
-        color: #1ABC9C;
-        font-family: 'Consolas', monospace;
-        font-size: 16px;
+    .stButton > button {
+        font-family: Consolas, monospace;
         font-weight: bold;
+        border-radius: 8px;
+    }
+    .result-box {
+        background-color: #252B3B;
+        border-radius: 12px;
+        padding: 16px;
+        font-family: Consolas, monospace;
+        white-space: pre-wrap;
+    }
+    .steps-box {
         background-color: #2E3650;
-        padding: 10px;
-        border-radius: 5px;
+        border-left: 4px solid #F39C12;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 10px;
+    }
+    .answer-box {
+        background-color: #1A3B2E;
+        border-left: 4px solid #1ABC9C;
+        border-radius: 8px;
+        padding: 14px;
+        font-size: 16px;
+    }
+    .example-card {
+        background-color: #252B3B;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 6px;
+    }
+    .tip-card {
+        background-color: #252B3B;
+        border-radius: 10px;
+        padding: 8px 14px;
+        margin-bottom: 6px;
+        color: #ECF0F1;
+        font-family: Consolas, monospace;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.markdown("<h1 style='text-align: center; color: #4F8EF7;'>📚 Ordinary Differential Equation Solver</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #95A5A6;'>Enter your equation · Analyze · Solve</p>", unsafe_allow_html=True)
+# ── Title ──
+st.markdown("<h1 style='text-align:center; font-family:Consolas;'>📐 Ordinary Differential Equation Solver</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#95A5A6; font-family:Consolas;'>Enter your equation · Analyze · Solve</p>", unsafe_allow_html=True)
 
-# Store current types in session state
-if 'current_types' not in st.session_state:
-    st.session_state.current_types = {}
-if 'current_eq' not in st.session_state:
-    st.session_state.current_eq = ""
+st.divider()
 
-# Input section
-with st.container():
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        eq_input = st.text_input(
-            "Enter first-order ODE:",
-            value=st.session_state.current_eq,
-            placeholder="Example: dy/dx = x*y  or  (2*x*y)*dx + (x**2)*dy = 0",
-            key="equation_input"
-        )
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            analyze_btn = st.button("🔍 Analyze", use_container_width=True, type="primary")
-        with col_btn2:
-            clear_btn = st.button("✖ Clear", use_container_width=True)
+# ── Session state ──
+if "eq_input" not in st.session_state:
+    st.session_state.eq_input = ""
+if "types_found" not in st.session_state:
+    st.session_state.types_found = {}
+if "analysis_msg" not in st.session_state:
+    st.session_state.analysis_msg = ""
+if "solve_result" not in st.session_state:
+    st.session_state.solve_result = None
+if "solve_type" not in st.session_state:
+    st.session_state.solve_type = None
 
-# Analysis result
-if clear_btn:
-    st.session_state.current_eq = ""
-    st.session_state.current_types = {}
+# ── Input row ──
+col_input, col_btns = st.columns([3, 1])
+
+with col_input:
+    eq_input = st.text_input(
+        "Enter first-order ODE:",
+        value=st.session_state.eq_input,
+        placeholder="e.g.  dy/dx + 2*x*y = exp(-x**2)",
+        key="eq_field"
+    )
+
+with col_btns:
+    st.write("")
+    st.write("")
+    c1, c2 = st.columns(2)
+    analyze_clicked = c1.button("🔍 Analyze", use_container_width=True)
+    clear_clicked   = c2.button("✖ Clear",   use_container_width=True)
+
+if clear_clicked:
+    st.session_state.eq_input = ""
+    st.session_state.types_found = {}
+    st.session_state.analysis_msg = ""
+    st.session_state.solve_result = None
+    st.session_state.solve_type = None
     st.rerun()
 
-if analyze_btn and eq_input:
-    st.session_state.current_eq = eq_input
-    label, types = classify_equation(eq_input)
-    st.session_state.current_types = types
-    
-    if "⚠️" in label or "❌" in label:
-        st.warning(label)
+if analyze_clicked and eq_input.strip():
+    msg, types = classify_equation(eq_input.strip())
+    st.session_state.eq_input = eq_input.strip()
+    st.session_state.types_found = types
+    st.session_state.analysis_msg = msg
+    st.session_state.solve_result = None
+    st.session_state.solve_type = None
+
+# ── Analysis result ──
+if st.session_state.analysis_msg:
+    if "✅" in st.session_state.analysis_msg:
+        st.success(st.session_state.analysis_msg)
+    elif "⚠️" in st.session_state.analysis_msg:
+        st.warning(st.session_state.analysis_msg)
     else:
-        st.success(label)
+        st.error(st.session_state.analysis_msg)
 
-# Display current equation info
-if st.session_state.current_eq:
-    st.markdown(f"<p class='info-text'>📝 Current equation: <b>{st.session_state.current_eq}</b></p>", unsafe_allow_html=True)
+# ── Solve buttons ──
+if st.session_state.types_found:
+    st.markdown("**Solve as →**")
+    cols = st.columns(len(BTN_COLORS))
+    for i, (name, color) in enumerate(BTN_COLORS.items()):
+        disabled = name not in st.session_state.types_found
+        label = f"Solve {name}"
+        with cols[i]:
+            if st.button(label, key=f"solve_{name}", disabled=disabled, use_container_width=True):
+                st.session_state.solve_type = name
+                eq = st.session_state.eq_input
+                f_or_flag = st.session_state.types_found.get(name)
+                if name == "Exact":
+                    res = solve_exact(eq)
+                elif name == "NonExact":
+                    res = solve_nonexact(eq)
+                elif name == "Linear":
+                    res = solve_linear(f_or_flag)
+                elif name == "Separable":
+                    res = solve_separable(f_or_flag)
+                elif name == "Bernoulli":
+                    res = solve_bernoulli(f_or_flag)
+                elif name == "Homogeneous":
+                    res = solve_homogeneous(f_or_flag)
+                elif name == "NonHomogeneous":
+                    res = solve_nonhomogeneous(f_or_flag)
+                else:
+                    res = "❌ Unknown type"
+                st.session_state.solve_result = res
 
-# STEPS dictionary
-STEPS = {
-    "Linear": """```
-── Steps: Linear Equation ─────────────────────────────
- Step 1 │ Standard form:      dy/dx + P(x)·y = Q(x)
- Step 2 │ Integrating factor: μ = e^(∫P dx)
- Step 3 │ Multiply both sides: d/dx(y·μ) = μ·Q
- Step 4 │ Integrate:          y·μ = ∫μ·Q dx + C
- Step 5 │ Solve for y:        y = (∫μ·Q dx + C) / μ
-───────────────────────────────────────────────────────```""",
-
-    "Separable": """```
-── Steps: Separable Equation ──────────────────────────
- Step 1 │ Separable form:     dy/dx = g(x)·h(y)
- Step 2 │ Separate variables: dy / h(y) = g(x) dx
- Step 3 │ Integrate left:     ∫ dy/h(y)
- Step 4 │ Integrate right:    ∫ g(x) dx
- Step 5 │ Add constant C:     ∫dy/h(y) = ∫g(x)dx + C
-───────────────────────────────────────────────────────```""",
-
-    "Bernoulli": """```
-── Steps: Bernoulli Equation ──────────────────────────
- Step 1 │ Identify form:      dy/dx + P(x)y = Q(x)y^n
- Step 2 │ Substitution:       v = y^(1-n)
- Step 3 │ Transform to linear: dv/dx + (1-n)P*v = (1-n)Q
- Step 4 │ Solve linear ODE for v
- Step 5 │ Back-substitute:    y = v^(1/(1-n))
-───────────────────────────────────────────────────────```""",
-
-    "Homogeneous": """```
-── Steps: Homogeneous Equation ────────────────────────
- Step 1 │ Verify:             f(tx,ty) = t^k * f(x,y)
- Step 2 │ Substitution:       y = v*x,  dy/dx = v + x*dv/dx
- Step 3 │ Substitute:         v + x*dv/dx = F(v)
- Step 4 │ Separate:           dv / (F(v)-v) = dx/x
- Step 5 │ Integrate & back-sub: v = y/x
-───────────────────────────────────────────────────────```""",
-
-    "Exact": """```
-── Steps: Exact Equation ──────────────────────────────
- Step 1 │ Write as:           M(x,y)dx + N(x,y)dy = 0
- Step 2 │ Check exactness:    dM/dy = dN/dx
- Step 3 │ Find potential:     F = ∫M dx + h(y)
- Step 4 │ Find h(y) from:     dF/dy = N  =>  h'(y)
- Step 5 │ Solution:           F(x,y) = C
-───────────────────────────────────────────────────────```""",
-
-    "NonExact": """```
-── Steps: Non-Exact Equation ──────────────────────────
- Step 1 │ Write as:           M dx + N dy = 0
- Step 2 │ Verify dM/dy ≠ dN/dx  (not exact)
- Step 3 │ Find integrating factor μ:
-         │  (dM/dy - dN/dx)/N = f(x) only → μ = e^(∫f dx)
-         │  (dN/dx - dM/dy)/M = g(y) only → μ = e^(∫g dy)
- Step 4 │ Multiply: M* = μM,  N* = μN  (now exact)
- Step 5 │ Solve as exact equation: F(x,y) = C
-───────────────────────────────────────────────────────```""",
-
-    "NonHomogeneous": """```
-── Steps: Non-Homogeneous Linear ──────────────────────
- Step 1 │ Standard form:      dy/dx + P(x)y = Q(x)
- Step 2 │ Solve homogeneous:  dy/dx + Py = 0
-         │   → y_h = C · e^(-∫P dx)
- Step 3 │ Variation of parameters: y_p = u(x) · e^(-∫P dx)
- Step 4 │ Find u(x):  u'(x) = Q · e^(∫P dx)
-         │   → u = ∫ Q · e^(∫P dx) dx
- Step 5 │ General solution:   y = y_h + y_p
-───────────────────────────────────────────────────────```""",
-}
-
-# Solve buttons section
-if st.session_state.current_types:
+# ── Steps + Answer display ──
+if st.session_state.solve_type and st.session_state.solve_result:
+    stype = st.session_state.solve_type
     st.markdown("---")
-    st.markdown("<h3 style='text-align: center;'>🔧 Solve as:</h3>", unsafe_allow_html=True)
-    
-    # Create columns for buttons dynamically
-    type_list = list(st.session_state.current_types.keys())
-    cols = st.columns(min(len(type_list), 4))
-    
-    for idx, ode_type in enumerate(type_list):
-        with cols[idx % 4]:
-            if st.button(f"Solve {ode_type}", use_container_width=True):
-                f_or_flag = st.session_state.current_types.get(ode_type)
-                
-                # Show steps
-                with st.expander("📖 Solution Steps", expanded=True):
-                    st.markdown(STEPS.get(ode_type, ""))
-                
-                # Solve
-                with st.spinner(f"Solving {ode_type} equation..."):
-                    if ode_type == "Exact":
-                        res = solve_exact(st.session_state.current_eq)
-                    elif ode_type == "NonExact":
-                        res = solve_nonexact(st.session_state.current_eq)
-                    elif ode_type == "Linear":
-                        res = solve_linear(f_or_flag)
-                    elif ode_type == "Separable":
-                        res = solve_separable(f_or_flag)
-                    elif ode_type == "Bernoulli":
-                        res = solve_bernoulli(f_or_flag)
-                    elif ode_type == "Homogeneous":
-                        res = solve_homogeneous(f_or_flag)
-                    elif ode_type == "NonHomogeneous":
-                        res = solve_nonhomogeneous(f_or_flag)
-                    else:
-                        res = "❌ Unknown type"
-                
-                st.markdown(f"<div class='answer-text'>🎯 Answer [{ode_type}]:<br>{res}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='steps-box'>{STEPS.get(stype, '')}</div>", unsafe_allow_html=True)
+    answer_text = st.session_state.solve_result.replace("\n", "<br>")
+    st.markdown(
+        f"<div class='answer-box'>► <b>Answer [{stype}]:</b><br>{answer_text}</div>",
+        unsafe_allow_html=True
+    )
 
-# Examples and Tips section
-st.markdown("---")
+st.divider()
+
+# ── Bottom: Examples + Tips ──
 col_ex, col_tip = st.columns(2)
 
 with col_ex:
-    st.markdown("<h3 style='color: #4F8EF7;'>📚 Example Equations</h3>", unsafe_allow_html=True)
-    
-    examples = [
-        ("Linear", "dy/dx + 2*x*y = exp(-x**2)"),
-        ("Separable", "dy/dx = x*y"),
-        ("Bernoulli", "dy/dx + 2*x*y = y**4"),
-        ("Homogeneous", "dy/dx = (x+y)/x"),
-        ("Exact", "(2*x*y)*dx + (x**2)*dy = 0"),
-        ("NonExact", "y*dx + 2*x*dy = 0"),
-        ("NonHomogeneous", "dy/dx - y = x**2"),
-    ]
-    
-    for kind, eq in examples:
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col1:
-            st.markdown(f"<span style='color: #4F8EF7;'>[{kind}]</span>", unsafe_allow_html=True)
-        with col2:
-            st.code(eq, language="python")
-        with col3:
-            if st.button("Try", key=f"try_{kind}"):
-                st.session_state.current_eq = eq
-                st.rerun()
+    st.markdown("### 📚 Example Equations")
+    for kind, eq in EXAMPLES:
+        color = BTN_COLORS.get(kind, "#4F8EF7")
+        col_label, col_eq, col_try = st.columns([1.2, 2.5, 0.8])
+        col_label.markdown(f"<span style='color:{color}; font-family:Consolas; font-weight:bold;'>[{kind}]</span>", unsafe_allow_html=True)
+        col_eq.markdown(f"<code style='color:#ECF0F1;'>{eq}</code>", unsafe_allow_html=True)
+        if col_try.button("Try", key=f"try_{kind}_{eq}"):
+            msg, types = classify_equation(eq)
+            st.session_state.eq_input = eq
+            st.session_state.types_found = types
+            st.session_state.analysis_msg = msg
+            st.session_state.solve_result = None
+            st.session_state.solve_type = None
+            st.rerun()
 
 with col_tip:
-    st.markdown("<h3 style='color: #F39C12;'>💡 Input Tips</h3>", unsafe_allow_html=True)
-    
+    st.markdown("### 💡 Input Tips")
     tips = [
-        "Use  dy/dx = ...  for standard form",
-        "Use  M(x,y)dx + N(x,y)dy = 0  for exact",
-        "Write powers as  x**2  or  y**3",
-        "Use  *  for multiplication:  2*x*y",
+        "Use  `dy/dx = ...`  for standard form",
+        "Use  `M(x,y)dx + N(x,y)dy = 0`  for exact",
+        "Write powers as  `x**2`  or  `y**3`",
+        "Use  `*`  for multiplication:  `2*x*y`",
         "Click 🔍 Analyze first, then Solve",
-        "Solve buttons appear for matched types",
+        "Solve buttons light up for matched types",
     ]
-    
     for tip in tips:
-        st.markdown(f"• {tip}")
-
-# Footer
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: #95A5A6;'>ODE Solver • Powered by SymPy & Streamlit</p>", unsafe_allow_html=True)
+        st.markdown(f"<div class='tip-card'>• {tip}</div>", unsafe_allow_html=True)
