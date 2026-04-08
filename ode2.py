@@ -82,9 +82,12 @@ def is_bernoulli(f):
         powers = set()
         for term in terms:
             if term.has(y):
-                p = sp.degree(term, y)
-                if p is not None:
-                    powers.add(p)
+                p = sp.Poly(term, y).degree()
+                try:
+                    p_int = int(p)
+                    powers.add(p_int)
+                except (TypeError, ValueError):
+                    pass
         if len(powers) >= 2 and 1 in powers:
             return any(p not in (0, 1) for p in powers)
         return False
@@ -167,7 +170,7 @@ def solve_bernoulli(f):
         powers = {}
         for term in terms:
             if term.has(y):
-                p = sp.degree(term, y)
+                p = int(sp.Poly(term, y).degree())
                 powers[p] = powers.get(p, sp.Integer(0)) + sp.simplify(term / y**p)
         n = max(p for p in powers if p not in (0, 1))
         P_coeff = -powers.get(1, sp.Integer(0))
@@ -445,8 +448,10 @@ with col_input:
         key="eq_field",
         label_visibility="collapsed"
     )
-    # sync back so top bar always shows current value
-    st.session_state.eq_input = eq_input
+    # sync: لو المستخدم كتب بيده، نحدّث session_state
+    if eq_input != st.session_state.get("eq_field_prev", ""):
+        st.session_state.eq_input = eq_input
+    st.session_state.eq_field_prev = eq_input
 
 with col_btns:
     st.write("")
@@ -536,7 +541,7 @@ with col_ex:
         if col_try.button("Try", key=f"try_{kind}_{eq}"):
             msg, types = classify_equation(eq)
             st.session_state.eq_input = eq
-            st.session_state.eq_field = eq
+            st.session_state["eq_field"] = eq   # ← يحدّث الـ widget نفسه
             st.session_state.types_found = types
             st.session_state.analysis_msg = msg
             st.session_state.solve_result = None
