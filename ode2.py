@@ -197,18 +197,88 @@ def classify_equation(eq_str):
     return "✅ Detected: " + ", ".join(types_found.keys()), types_found
 
 # =========================================================
+# STEPS
+# =========================================================
+
+STEPS = {
+    "Linear": [
+        ("Standard Form", "Rewrite as:  **dy/dx + P(x)·y = Q(x)**"),
+        ("Integrating Factor", "Compute:  **μ(x) = e^(∫P(x) dx)**"),
+        ("Multiply Both Sides", "Equation becomes:  **d/dx(y·μ) = μ·Q(x)**"),
+        ("Integrate", "Both sides:  **y·μ = ∫μ·Q(x) dx + C**"),
+        ("Solve for y", "Divide by μ:  **y = (∫μ·Q dx + C) / μ**"),
+    ],
+    "Separable": [
+        ("Separable Form", "Rewrite as:  **dy/dx = g(x)·h(y)**"),
+        ("Separate Variables", "Rearrange:  **dy / h(y) = g(x) dx**"),
+        ("Integrate Left Side", "Compute:  **∫ dy/h(y)**"),
+        ("Integrate Right Side", "Compute:  **∫ g(x) dx**"),
+        ("Add Constant", "Combine:  **∫dy/h(y) = ∫g(x)dx + C**"),
+    ],
+    "Bernoulli": [
+        ("Identify Form", "Equation is:  **dy/dx + P(x)y = Q(x)yⁿ**"),
+        ("Substitution", "Let:  **v = y^(1−n)**"),
+        ("Transform to Linear", "New ODE:  **dv/dx + (1−n)P(x)v = (1−n)Q(x)**"),
+        ("Solve Linear ODE", "Apply integrating factor method to find **v(x)**"),
+        ("Back-Substitute", "Recover y:  **y = v^(1/(1−n))**"),
+    ],
+    "Homogeneous": [
+        ("Verify Homogeneity", "Check:  **f(tx, ty) = tᵏ f(x, y)**"),
+        ("Substitution", "Let:  **y = v·x**,  so  **dy/dx = v + x·dv/dx**"),
+        ("Substitute", "Equation becomes:  **v + x·dv/dx = F(v)**"),
+        ("Separate & Integrate", "Rearrange:  **dv / (F(v)−v) = dx/x**,  then integrate"),
+        ("Back-Substitute", "Replace v with:  **v = y/x**"),
+    ],
+    "Exact": [
+        ("Standard Form", "Write as:  **M(x,y)dx + N(x,y)dy = 0**"),
+        ("Check Exactness", "Verify:  **∂M/∂y = ∂N/∂x**"),
+        ("Find Potential F", "Integrate:  **F = ∫M dx + h(y)**"),
+        ("Find h(y)", "Differentiate F w.r.t. y and set equal to N:  **h'(y)**"),
+        ("Write Solution", "Final answer:  **F(x, y) = C**"),
+    ],
+}
+
+# =========================================================
 # UI
 # =========================================================
 
-st.set_page_config(page_title="ODE Solver", page_icon="🧮")
+st.set_page_config(page_title="ODE Solver", page_icon="🧮", layout="wide")
+
+st.markdown("""
+<style>
+.step-box {
+    background: #1e2a3a;
+    border-left: 4px solid #4F8EF7;
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin: 6px 0;
+}
+.step-num {
+    color: #4F8EF7;
+    font-weight: bold;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.step-title {
+    color: #F39C12;
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+.step-body {
+    color: #ECF0F1;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🧮 ODE Solver")
 
 # session state init
-for key in ("types_found", "label", "solution", "sol_type", "eq_saved"):
+for key in ("types_found", "label", "solution", "sol_type", "eq_saved", "show_steps"):
     if key not in st.session_state:
-        st.session_state[key] = {} if key == "types_found" else ""
+        st.session_state[key] = {} if key == "types_found" else (False if key == "show_steps" else "")
 
-# ── Examples ──
+# ── Sidebar Examples ──
 with st.sidebar:
     st.header("📚 Examples")
     examples = {
@@ -219,12 +289,23 @@ with st.sidebar:
         "Exact":        "(2*x*y)dx + (x**2)dy = 0",
     }
     for kind, eq in examples.items():
-        if st.button(f"{kind}: {eq}", use_container_width=True):
+        if st.button(f"**{kind}**  \n`{eq}`", use_container_width=True):
             st.session_state.eq_saved = eq
             st.session_state.types_found = {}
             st.session_state.label = ""
             st.session_state.solution = ""
+            st.session_state.show_steps = False
             st.rerun()
+
+    st.divider()
+    st.header("💡 Input Tips")
+    st.markdown("""
+- `dy/dx = ...` for standard form
+- `M dx + N dy = 0` for exact
+- Use `**` for powers: `x**2`
+- Use `*` for multiply: `2*x*y`
+- Click **Analyze** first, then **Solve**
+""")
 
 # ── Input ──
 eq_input = st.text_input("Enter ODE:", value=st.session_state.eq_saved,
@@ -233,18 +314,20 @@ eq_input = st.text_input("Enter ODE:", value=st.session_state.eq_saved,
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    if st.button("🔍 Analyze", use_container_width=True):
+    if st.button("🔍 Analyze", use_container_width=True, type="primary"):
         if eq_input.strip():
             label, types = classify_equation(eq_input.strip())
             st.session_state.label = label
             st.session_state.types_found = types
             st.session_state.solution = ""
+            st.session_state.show_steps = False
             st.session_state.eq_saved = eq_input.strip()
 
 with col2:
     if st.button("🗑 Clear", use_container_width=True):
         for key in ("types_found", "label", "solution", "sol_type", "eq_saved"):
             st.session_state[key] = {} if key == "types_found" else ""
+        st.session_state.show_steps = False
         st.rerun()
 
 # ── Analysis result ──
@@ -260,20 +343,39 @@ if types:
         with cols[i]:
             if st.button(f"Solve {name}", use_container_width=True):
                 eq_str = st.session_state.eq_saved
-                if name == "Exact":        res = solve_exact(eq_str)
-                elif name == "Linear":     res = solve_linear(f_or_flag)
-                elif name == "Separable":  res = solve_separable(f_or_flag)
-                elif name == "Bernoulli":  res = solve_bernoulli(f_or_flag)
+                if name == "Exact":         res = solve_exact(eq_str)
+                elif name == "Linear":      res = solve_linear(f_or_flag)
+                elif name == "Separable":   res = solve_separable(f_or_flag)
+                elif name == "Bernoulli":   res = solve_bernoulli(f_or_flag)
                 elif name == "Homogeneous": res = solve_homogeneous(f_or_flag)
                 else: res = "❌ Unknown"
                 st.session_state.solution = res
                 st.session_state.sol_type = name
+                st.session_state.show_steps = True
 
-# ── Solution output ──
-if st.session_state.solution:
-    sol = st.session_state.solution
+# ── Steps + Solution ──
+if st.session_state.show_steps and st.session_state.sol_type:
     stype = st.session_state.sol_type
-    if sol.startswith("❌"):
-        st.error(f"[{stype}] {sol}")
-    else:
-        st.success(f"[{stype} Solution]\n\n{sol}")
+    sol   = st.session_state.solution
+
+    st.divider()
+
+    col_steps, col_sol = st.columns([1, 1])
+
+    with col_steps:
+        st.subheader(f"📋 Steps — {stype}")
+        for i, (title, body) in enumerate(STEPS.get(stype, []), 1):
+            st.markdown(f"""
+<div class="step-box">
+  <div class="step-num">Step {i}</div>
+  <div class="step-title">{title}</div>
+  <div class="step-body">{body}</div>
+</div>
+""", unsafe_allow_html=True)
+
+    with col_sol:
+        st.subheader("✅ Answer")
+        if sol.startswith("❌"):
+            st.error(sol)
+        else:
+            st.success(f"**[{stype} Solution]**\n\n`{sol}`")
