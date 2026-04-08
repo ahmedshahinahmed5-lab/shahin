@@ -442,8 +442,11 @@ with col_input:
         "Enter first-order ODE:",
         value=st.session_state.eq_input,
         placeholder="e.g.  dy/dx + 2*x*y = exp(-x**2)",
-        key="eq_field"
+        key="eq_field",
+        label_visibility="collapsed"
     )
+    # sync back so top bar always shows current value
+    st.session_state.eq_input = eq_input
 
 with col_btns:
     st.write("")
@@ -533,6 +536,7 @@ with col_ex:
         if col_try.button("Try", key=f"try_{kind}_{eq}"):
             msg, types = classify_equation(eq)
             st.session_state.eq_input = eq
+            st.session_state.eq_field = eq
             st.session_state.types_found = types
             st.session_state.analysis_msg = msg
             st.session_state.solve_result = None
